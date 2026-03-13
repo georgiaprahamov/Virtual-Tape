@@ -11,7 +11,17 @@ SMOOTHING_FRAMES = 20
 class VirtualTapeMeasure:
 
     def __init__(self):
-        self.cap = cv2.VideoCapture(0)
+        # Try different backends and indices for macOS robustness
+        self.cap = None
+        for index in [0, 1]:
+            cap = cv2.VideoCapture(index, cv2.CAP_AVFOUNDATION)
+            if cap.isOpened():
+                self.cap = cap
+                break
+        
+        if self.cap is None:
+            self.cap = cv2.VideoCapture(0)
+
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         self.pixels_per_cm = PIXELS_PER_CM_DEFAULT
@@ -184,6 +194,18 @@ class VirtualTapeMeasure:
         print("====================================")
 
         try:
+            # Wait for the first valid frame (camera warmup)
+            max_retries = 30
+            for _ in range(max_retries):
+                success, frame = self.cap.read()
+                if success:
+                    break
+                cv2.waitKey(100)
+            
+            if not success:
+                print("ERROR: Camera is opened but could not read frames.")
+                return
+
             while True:
                 success, frame = self.cap.read()
                 if not success:
